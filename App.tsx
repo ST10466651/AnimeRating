@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,143 +6,288 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 
-// Anime type
-type Anime = {
+// Category type
+type Category = "Anime" | "Movie" | "Show";
+
+// Entry type
+type Entry = {
+  id: string;
   name: string;
   rating: number;
+  comment: string;
+  category: Category;
 };
 
-const Home: React.FC<{
-  addAnime: (anime: Anime) => void;
-  goToRatings: () => void;
-}> = ({ addAnime, goToRatings }) => {
-  const [animeName, setAnimeName] = useState("");
-  const [rating, setRating] = useState<number>(1);
+const categories: Category[] = ["Anime", "Movie", "Show"];
 
-  const handleAddAnime = () => {
-    if (animeName.trim() === "") return;
-    addAnime({ name: animeName, rating });
-    setAnimeName("");
-    setRating(1);
+const renderNumbers = (selectedRating: number, setRatingFn?: (r: number) => void) => (
+  <View style={styles.numberRow}>
+    {Array.from({ length: 10 }, (_, i) => {
+      const num = i + 1;
+      const isSelected = num === selectedRating;
+      return (
+        <TouchableOpacity
+          key={num}
+          disabled={!setRatingFn}
+          onPress={() => setRatingFn && setRatingFn(num)}
+          style={[
+            styles.numberButton,
+            isSelected && styles.numberButtonSelected,
+          ]}
+        >
+          <Text style={[
+            styles.numberText,
+            isSelected && styles.numberTextSelected,
+          ]}>
+            {num}
+          </Text>
+        </TouchableOpacity>
+      );
+    })}
+  </View>
+);
+
+const Home: React.FC<{
+  addEntry: (entry: Entry) => void;
+  goToRatings: () => void;
+  existingEntries: Entry[];
+}> = ({ addEntry, goToRatings, existingEntries }) => {
+  const [name, setName] = useState("");
+  const [rating, setRating] = useState<number>(0);
+  const [comment, setComment] = useState("");
+  const [category, setCategory] = useState<Category>("Anime");
+
+  // Refs for TextInputs
+  const nameInputRef = useRef<TextInput>(null);
+  const commentInputRef = useRef<TextInput>(null);
+
+  const handleAddEntry = () => {
+    if (!name.trim() || rating === 0) return;
+
+    // Duplicate check (case-insensitive, same category)
+    const duplicate = existingEntries.some(
+      (a) =>
+        a.name.toLowerCase() === name.trim().toLowerCase() &&
+        a.category === category
+    );
+    if (duplicate) {
+      Alert.alert("Duplicate Entry", `This ${category.toLowerCase()} has already been rated.`);
+      return;
+    }
+
+    if (comment.length > 100) {
+      Alert.alert("Too Long", "Comment must be 100 characters or less.");
+      return;
+    }
+
+    addEntry({
+      id: Date.now().toString(),
+      name: name.trim(),
+      rating,
+      comment,
+      category,
+    });
+    setName("");
+    setRating(0);
+    setComment("");
+    // Dismiss keyboard and blur inputs
+    nameInputRef.current?.blur();
+    commentInputRef.current?.blur();
+    Keyboard.dismiss();
+  };
+
+  // Dismiss keyboard and blur inputs on screen touch
+  const handleScreenTouch = () => {
+    nameInputRef.current?.blur();
+    commentInputRef.current?.blur();
+    Keyboard.dismiss();
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <View style={styles.container}>
-        <Text style={styles.title}>🎬 Anime Rater</Text>
-        <View style={styles.card}>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Anime Name"
-            placeholderTextColor="#aaa"
-            value={animeName}
-            onChangeText={setAnimeName}
-          />
-          <View style={styles.ratingRow}>
-            <View style={styles.ratingPickerContainer}>
-              <View style={styles.ratingPickerRow}>
-                {Array.from({ length: 5 }, (_, i) => i + 1).map((num) => (
-                  <TouchableOpacity
-                    key={num}
+    <TouchableWithoutFeedback onPress={handleScreenTouch} accessible={false}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={styles.container}>
+          <Text style={styles.title}>🎬 CineRate Pro</Text>
+          <View style={styles.card}>
+            {/* Category Picker */}
+            <View style={styles.categoryRow}>
+              {categories.map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[
+                    styles.categoryButton,
+                    category === cat && styles.categoryButtonSelected,
+                  ]}
+                  onPress={() => {
+                    setCategory(cat);
+                    handleScreenTouch();
+                  }}
+                >
+                  <Text
                     style={[
-                      styles.ratingButton,
-                      rating === num && styles.ratingButtonSelected,
+                      styles.categoryButtonText,
+                      category === cat && styles.categoryButtonTextSelected,
                     ]}
-                    onPress={() => setRating(num)}
                   >
-                    <Text
-                      style={[
-                        styles.ratingButtonText,
-                        rating === num && styles.ratingButtonTextSelected,
-                      ]}
-                    >
-                      {num}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <View style={styles.ratingPickerRow}>
-                {Array.from({ length: 5 }, (_, i) => i + 6).map((num) => (
-                  <TouchableOpacity
-                    key={num}
-                    style={[
-                      styles.ratingButton,
-                      rating === num && styles.ratingButtonSelected,
-                    ]}
-                    onPress={() => setRating(num)}
-                  >
-                    <Text
-                      style={[
-                        styles.ratingButtonText,
-                        rating === num && styles.ratingButtonTextSelected,
-                      ]}
-                    >
-                      {num}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
+
+            <TextInput
+              ref={nameInputRef}
+              placeholder={`Enter ${category} name...`}
+              placeholderTextColor="#aaa"
+              value={name}
+              onChangeText={setName}
+              style={styles.input}
+              returnKeyType="done"
+              onSubmitEditing={handleScreenTouch}
+            />
+
+            <Text style={styles.label}>Select Rating</Text>
+            {renderNumbers(rating, (r) => {
+              setRating(r);
+              handleScreenTouch();
+            })}
+
+            <Text style={styles.label}>Your Thoughts</Text>
+            <View style={styles.commentBox}>
+              <TextInput
+                ref={commentInputRef}
+                style={styles.commentInput}
+                placeholder="Write a short review..."
+                placeholderTextColor="#aaa"
+                value={comment}
+                onChangeText={(text) =>
+                  text.length <= 100 ? setComment(text) : null
+                }
+                multiline
+                scrollEnabled
+                textAlignVertical="top"
+                returnKeyType="done"
+                onSubmitEditing={handleScreenTouch}
+              />
+            </View>
+            <Text style={styles.charCount}>{comment.length}/100</Text>
+
+            <TouchableOpacity style={styles.addButton} onPress={handleAddEntry}>
+              <Text style={styles.addButtonText}>+ Add {category}</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.addButton} onPress={handleAddAnime}>
-            <Text style={styles.addButtonText}>Add Anime!</Text>
+
+          <TouchableOpacity onPress={() => { goToRatings(); handleScreenTouch(); }} style={styles.linkButton}>
+            <Text style={styles.linkText}>View Ratings →</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={goToRatings} style={styles.linkButton}>
-          <Text style={styles.linkText}>View Ratings →</Text>
-        </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </TouchableWithoutFeedback>
   );
 };
 
 const Ratings: React.FC<{
-  anime: Anime[];
+  entries: Entry[];
   goBack: () => void;
-}> = ({ anime, goBack }) => (
-  <SafeAreaView style={styles.flex}>
-    <View style={styles.container}>
-      <Text style={styles.title}>⭐ Anime Ratings</Text>
-      {anime.length === 0 ? (
-        <Text style={styles.noMovies}>No anime rated yet.</Text>
-      ) : (
-        <FlatList
-          style={styles.list}
-          data={anime}
-          keyExtractor={(_, idx) => idx.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.movieItem}>
-              <Text style={styles.movieName}>{item.name}</Text>
-              <Text style={styles.movieRating}>{item.rating}/10</Text>
+}> = ({ entries, goBack }) => {
+  // Split by category
+  const anime = entries.filter((e) => e.category === "Anime");
+  const movies = entries.filter((e) => e.category === "Movie");
+  const shows = entries.filter((e) => e.category === "Show");
+
+  const renderSection = (title: string, data: Entry[]) => {
+    if (data.length === 0) {
+      return (
+        <View style={{ marginBottom: 24, width: "100%", maxWidth: 420 }}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.noMovies}>No {title.toLowerCase()} rated yet.</Text>
+        </View>
+      );
+    }
+
+    // If 3 or more, use FlatList (scrollable), else map directly (not scrollable)
+    if (data.length >= 3) {
+      return (
+        <View style={{ marginBottom: 24, width: "100%", maxWidth: 420, height: 180 }}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          <FlatList
+            style={styles.list}
+            data={data}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <View style={styles.movieCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.movieName}>{item.name}</Text>
+                  <Text style={styles.commentText}>
+                    {item.comment ? item.comment : "No comment"}
+                  </Text>
+                </View>
+                <Text style={styles.movieRatingText}>{item.rating} / 10</Text>
+              </View>
+            )}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+      );
+    } else {
+      return (
+        <View style={{ marginBottom: 24, width: "100%", maxWidth: 420 }}>
+          <Text style={styles.sectionTitle}>{title}</Text>
+          {data.map((item) => (
+            <View style={styles.movieCard} key={item.id}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.movieName}>{item.name}</Text>
+                <Text style={styles.commentText}>
+                  {item.comment ? item.comment : "No comment"}
+                </Text>
+              </View>
+              <Text style={styles.movieRatingText}>{item.rating} / 10</Text>
             </View>
-          )}
-        />
-      )}
+          ))}
+        </View>
+      );
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>⭐ Ratings</Text>
+      <View style={{ width: "100%", alignItems: "center" }}>
+        {renderSection("Anime", anime)}
+        {renderSection("Movie", movies)}
+        {renderSection("Show", shows)}
+      </View>
       <TouchableOpacity onPress={goBack} style={styles.backButton}>
         <Text style={styles.backButtonText}>← Back</Text>
       </TouchableOpacity>
     </View>
-  </SafeAreaView>
-);
+  );
+};
 
 const App: React.FC = () => {
-  const [anime, setAnime] = useState<Anime[]>([]);
+  const [entries, setEntries] = useState<Entry[]>([]);
   const [screen, setScreen] = useState<"home" | "ratings">("home");
 
-  const addAnime = (animeItem: Anime) => setAnime((prev) => [...prev, animeItem]);
+  const addEntry = (entry: Entry) => setEntries((prev) => [...prev, entry]);
 
   return screen === "home" ? (
-    <Home addAnime={addAnime} goToRatings={() => setScreen("ratings")} />
+    <Home
+      addEntry={addEntry}
+      goToRatings={() => setScreen("ratings")}
+      existingEntries={entries}
+    />
   ) : (
-    <Ratings anime={anime} goBack={() => setScreen("home")} />
+    <Ratings entries={entries} goBack={() => setScreen("home")} />
   );
 };
 
@@ -150,138 +295,216 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: {
     flex: 1,
-    backgroundColor: "#111827",
+    backgroundColor: "#06205cff",
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    padding: 20,
   },
   title: {
     fontSize: 32,
-    fontWeight: "bold",
-    marginBottom: 24,
-    color: "#fff",
-    textShadowColor: "#000",
-    textShadowOffset: { width: 1, height: 2 },
-    textShadowRadius: 6,
+    fontWeight: "700",
+    marginVertical: 28,
+    color: "#f97316",
+    letterSpacing: 0.8,
+    textAlign: "center",
   },
   card: {
-    backgroundColor: "#1f2937",
+    backgroundColor: "#1a4ea3ff",
+    borderRadius: 18,
     padding: 20,
-    borderRadius: 16,
     width: "100%",
-    maxWidth: 400,
-    marginBottom: 24,
+    maxWidth: 420,
+    marginBottom: 20,
     shadowColor: "#000",
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
+  },
+  categoryRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 14,
+  },
+  categoryButton: {
+    backgroundColor: "#fff",
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    marginHorizontal: 4,
+  },
+  categoryButtonSelected: {
+    backgroundColor: "#f97316",
+  },
+  categoryButtonText: {
+    color: "#0f172a",
+    fontWeight: "500",
+    fontSize: 15,
+  },
+  categoryButtonTextSelected: {
+    color: "#fff",
+    fontWeight: "600",
   },
   input: {
     backgroundColor: "#fff",
-    color: "#000",
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
-    marginBottom: 16,
-    fontSize: 16,
+    fontSize: 15,
+    marginBottom: 14,
+    textAlign: "center",
   },
   label: {
-    color: "#fff",
-    marginBottom: 8,
-    fontSize: 16,
-    fontWeight: "600",
+    color: "#e2e8f0",
+    fontSize: 15,
+    marginBottom: 6,
+    fontWeight: "500",
+    textAlign: "center",
   },
-  ratingRow: {
+  numberRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 16,
-    justifyContent: "center", // Center the ratings section horizontally
+    flexWrap: "wrap",
+    marginBottom: 14,
+    justifyContent: "center",
   },
-  ratingPickerContainer: {
-    alignItems: "center", // Center the rows vertically within the container
-    flex: 1,
-  },
-  ratingPickerRow: {
-    flexDirection: "row",
-    justifyContent: "center", // Center the buttons in each row
-    marginBottom: 4,
-  },
-  ratingButton: {
+  numberButton: {
     backgroundColor: "#fff",
     borderRadius: 6,
     paddingVertical: 6,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     margin: 4,
+    borderWidth: 1.5,
+    borderColor: "#fff",
   },
-  ratingButtonSelected: {
-    backgroundColor: "#fb923c",
+  numberButtonSelected: {
+    backgroundColor: "#f97316",
+    borderColor: "#f97316",
   },
-  ratingButtonText: {
-    color: "#000",
-    fontWeight: "bold",
+  numberText: {
+    color: "#0f172a",
+    fontWeight: "500",
+    fontSize: 16,
   },
-  ratingButtonTextSelected: {
+  numberTextSelected: {
     color: "#fff",
+    fontWeight: "600",
+  },
+  commentBox: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 10,
+    height: 100,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  commentInput: {
+    flex: 1,
+    fontSize: 14,
+    color: "#0f172a",
+  },
+  charCount: {
+    color: "#94a3b8",
+    fontSize: 12,
+    alignSelf: "flex-end",
+    marginBottom: 6,
   },
   addButton: {
-    backgroundColor: "#fb923c",
-    padding: 14,
+    backgroundColor: "#f97316",
     borderRadius: 10,
+    paddingVertical: 12,
     alignItems: "center",
-    marginTop: 8,
+    marginTop: 6,
+    alignSelf: "center",
   },
   addButtonText: {
     color: "#fff",
-    fontWeight: "bold",
-    fontSize: 18,
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
   },
   linkButton: {
-    marginTop: 16,
+    marginTop: 14,
+    alignSelf: "center",
   },
   linkText: {
-    color: "#fb923c",
-    fontSize: 16,
+    color: "#f97316",
+    fontSize: 15,
     textDecorationLine: "underline",
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  sectionTitle: {
+    color: "#facc15",
+    fontSize: 20,
     fontWeight: "600",
+    marginVertical: 6,
+    alignSelf: "center",
+    textAlign: "center",
   },
   list: {
     width: "100%",
-    maxWidth: 400,
-    marginBottom: 16,
+    maxWidth: 420,
+    marginBottom: 14,
+    alignSelf: "center",
   },
-  movieItem: {
-    backgroundColor: "#374151",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
+  movieCard: {
+    backgroundColor: "#275fadff",
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 5,
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "center",
   },
   movieName: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "500",
+    textAlign: "center",
   },
   movieRating: {
-    color: "#fb923c",
-    fontWeight: "bold",
+    flexDirection: "row",
+    justifyContent: "center",
+  },
+  movieRatingText: {
+    color: "#facc15",
     fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 10,
+    textAlign: "center",
   },
   noMovies: {
-    color: "#ccc",
-    fontSize: 18,
-    marginVertical: 24,
+    color: "#94a3b8",
+    fontSize: 16,
+    marginTop: 8,
+    textAlign: "center",
   },
   backButton: {
-    marginTop: 16,
-    backgroundColor: "#374151",
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    borderRadius: 8,
+    marginTop: 14,
+    backgroundColor: "#234b8aff",
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 7,
     alignItems: "center",
+    alignSelf: "center",
   },
   backButtonText: {
     color: "#fff",
-    fontWeight: "bold",
-    fontSize: 16,
+    fontWeight: "600",
+    fontSize: 15,
+    textAlign: "center",
+  },
+  commentText: {
+    color: "#e2e8f0",
+    fontSize: 13,
+    marginTop: 4,
+    fontStyle: "italic",
+    textAlign: "left",
   },
 });
 
